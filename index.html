@@ -327,13 +327,22 @@ let TUTOR_MODE=false;
 // ── API CALL ──────────────────────────────────────────────────
 function api(action, payload) {
   return new Promise(function(resolve) {
-    const params = new URLSearchParams();
-    params.append('action', action);
-    if (payload) params.append('payload', JSON.stringify(payload));
-    fetch(SCRIPT_URL + '?' + params.toString())
-      .then(function(r) { return r.json(); })
-      .then(function(data) { resolve(data); })
-      .catch(function(e) { resolve({ok:false, error:e.message}); });
+    var callbackName = 'cb_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+    var params = 'action=' + encodeURIComponent(action) + '&callback=' + callbackName;
+    if (payload) params += '&payload=' + encodeURIComponent(JSON.stringify(payload));
+    window[callbackName] = function(data) {
+      delete window[callbackName];
+      document.body.removeChild(script);
+      resolve(data);
+    };
+    var script = document.createElement('script');
+    script.src = SCRIPT_URL + '?' + params;
+    script.onerror = function() {
+      delete window[callbackName];
+      document.body.removeChild(script);
+      resolve({ok:false, error:'Connection failed'});
+    };
+    document.body.appendChild(script);
   });
 }
 
