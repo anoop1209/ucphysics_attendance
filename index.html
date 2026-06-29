@@ -1,1 +1,783 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>UC Physics Attendance Manager</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --green:#1a6b3c;--green-dark:#0f4a2a;--green-light:#e8f5ee;
+  --red:#A32D2D;--red-light:#FCEBEB;
+  --amber:#854F0B;--amber-light:#FAEEDA;
+  --gray:#444;--gray-light:#F5F5F5;--gray-mid:#888;
+  --border:#ddd;--radius:10px;--radius-sm:6px;
+  --shadow:0 2px 8px rgba(0,0,0,0.08);
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:15px;color:#222;background:#f0f2f5;min-height:100vh}
+.hidden{display:none!important}
+#loading{position:fixed;inset:0;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;gap:16px}
+.spinner{width:44px;height:44px;border:3px solid #e0e0e0;border-top-color:var(--green);border-radius:50%;animation:spin 0.8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#loading-msg{font-size:14px;color:#888;text-align:center;padding:0 20px}
+#app{display:flex;flex-direction:column;min-height:100vh;max-width:480px;margin:0 auto;background:#fff}
+.top-bar{background:var(--green);color:#fff;padding:12px 16px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:100;box-shadow:0 2px 6px rgba(0,0,0,0.2)}
+.top-bar h1{font-size:15px;font-weight:600;flex:1;line-height:1.3}
+.role-badge{font-size:11px;background:rgba(255,255,255,0.2);padding:3px 8px;border-radius:20px;white-space:nowrap}
+.tab-bar{display:flex;background:#fff;border-bottom:1px solid var(--border);position:sticky;top:49px;z-index:99}
+.tab{flex:1;padding:10px 4px 8px;font-size:11px;font-weight:500;text-align:center;cursor:pointer;color:var(--gray-mid);border-bottom:2px solid transparent;transition:all 0.15s;display:flex;flex-direction:column;align-items:center;gap:2px}
+.tab.active{color:var(--green);border-bottom-color:var(--green)}
+.screen{display:none;padding:16px;padding-bottom:80px}
+.screen.active{display:block}
+.card{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:12px;box-shadow:var(--shadow)}
+.card-title{font-size:12px;font-weight:600;color:var(--gray-mid);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px}
+.field{margin-bottom:10px}
+.field label{display:block;font-size:12px;font-weight:500;color:var(--gray);margin-bottom:4px}
+input,select{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:15px;color:#222;background:#fff;outline:none;transition:border 0.15s}
+input:focus,select:focus{border-color:var(--green)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:11px 16px;border-radius:var(--radius-sm);font-size:15px;font-weight:500;border:1px solid var(--border);background:#fff;color:#222;cursor:pointer;transition:all 0.15s;width:100%;margin-bottom:8px}
+.btn:active{transform:scale(0.98)}
+.btn-primary{background:var(--green);color:#fff;border-color:var(--green)}
+.btn-primary:hover{background:var(--green-dark)}
+.btn-danger{color:var(--red);border-color:#F09595}
+.btn-sm{padding:5px 10px;font-size:12px;width:auto;margin-bottom:0}
+.btn-row{display:flex;gap:8px}
+.btn-row .btn{flex:1}
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
+.stat{background:var(--gray-light);border-radius:var(--radius-sm);padding:10px 12px}
+.stat-label{font-size:11px;color:var(--gray-mid);margin-bottom:2px}
+.stat-val{font-size:22px;font-weight:600}
+.student-row{display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid #f0f0f0}
+.student-row:last-child{border-bottom:none}
+.s-roll{font-size:12px;color:var(--gray-mid);min-width:52px;font-weight:500}
+.s-name{flex:1;font-size:14px}
+.s-meta{font-size:11px;color:var(--gray-mid)}
+.att-toggle{display:flex;border-radius:var(--radius-sm);overflow:hidden;border:1px solid var(--border)}
+.att-toggle button{padding:7px 14px;font-size:13px;font-weight:600;border:none;background:#f5f5f5;color:var(--gray-mid);cursor:pointer;transition:all 0.15s}
+.att-toggle button.active-p{background:#EAF3DE;color:#3B6D11}
+.att-toggle button.active-a{background:var(--red-light);color:var(--red)}
+.badge{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px}
+.badge-p{background:#EAF3DE;color:#3B6D11}
+.badge-a{background:var(--red-light);color:var(--red)}
+.badge-h{background:var(--amber-light);color:var(--amber)}
+.progress{height:6px;border-radius:3px;background:#e8e8e8;overflow:hidden;margin:3px 0}
+.progress-fill{height:100%;border-radius:3px}
+.alert{padding:10px 12px;border-radius:var(--radius-sm);font-size:13px;margin-bottom:10px}
+.alert-info{background:var(--green-light);color:var(--green-dark)}
+.alert-warn{background:var(--amber-light);color:var(--amber)}
+.alert-err{background:var(--red-light);color:var(--red)}
+.alert-ok{background:#EAF3DE;color:#3B6D11}
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:200;display:flex;align-items:flex-end;justify-content:center}
+.modal{background:#fff;border-radius:16px 16px 0 0;padding:20px 16px 32px;width:100%;max-width:480px;max-height:90vh;overflow-y:auto}
+.modal-title{font-size:16px;font-weight:600;margin-bottom:14px}
+.day-nav{display:flex;align-items:center;gap:8px;margin-bottom:14px}
+.day-nav .day-label{flex:1;text-align:center}
+.day-title{font-size:15px;font-weight:600}
+.day-sub{font-size:12px;color:var(--gray-mid)}
+.nav-btn{padding:7px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);background:#fff;cursor:pointer;font-size:18px}
+.file-drop{border:2px dashed var(--border);border-radius:var(--radius);padding:20px;text-align:center;color:var(--gray-mid);cursor:pointer;margin-bottom:10px;font-size:13px}
+.file-drop:hover{background:var(--gray-light);border-color:var(--green)}
+.wa-msg{background:#e8fde7;border-radius:var(--radius-sm);padding:10px 12px;font-size:12px;white-space:pre-wrap;word-break:break-word;margin-bottom:8px;border-left:3px solid #25d366;max-height:180px;overflow-y:auto}
+.full-page{min-height:100vh;background:linear-gradient(135deg,#1a6b3c 0%,#0f4a2a 100%);display:flex;align-items:center;justify-content:center;padding:20px}
+.page-card{background:#fff;border-radius:16px;padding:28px 24px;width:100%;max-width:400px;box-shadow:0 8px 32px rgba(0,0,0,0.2)}
+.page-logo{text-align:center;margin-bottom:24px}
+.page-logo h2{font-size:18px;font-weight:700;color:var(--green);margin-bottom:4px;line-height:1.4}
+.page-logo p{font-size:13px;color:var(--gray-mid)}
+.section-label{font-size:11px;font-weight:600;color:var(--gray-mid);text-transform:uppercase;letter-spacing:0.5px;margin:14px 0 6px}
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#222;color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:999;opacity:0;transition:opacity 0.3s;pointer-events:none;white-space:nowrap}
+</style>
+</head>
+<body>
 
+<div id="loading">
+  <div class="spinner"></div>
+  <div id="loading-msg">Loading UC Physics Attendance…</div>
+</div>
+<div id="toast"></div>
+
+<!-- LOGIN SCREEN -->
+<div id="login-screen" class="full-page hidden">
+  <div class="page-card">
+    <div class="page-logo">
+      <div style="font-size:48px;margin-bottom:10px">🎓</div>
+      <h2>University College Physics<br>Attendance Manager</h2>
+      <p style="margin-top:6px">University College, Thiruvananthapuram</p>
+    </div>
+    <div class="field">
+      <label>Email Address</label>
+      <input id="login-email" type="email" placeholder="yourname@gmail.com" autocomplete="email">
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input id="login-password" type="password" placeholder="Enter your password" autocomplete="current-password">
+    </div>
+    <div id="login-err" style="margin-bottom:8px"></div>
+    <button class="btn btn-primary" onclick="doLogin()">🔐 Login</button>
+    <div style="text-align:center;margin-top:12px">
+      <button class="btn-sm btn" onclick="showParentView()" style="width:auto;font-size:13px">👨‍👩‍👧 I am a Parent</button>
+    </div>
+  </div>
+</div>
+
+<!-- SETUP SCREEN -->
+<div id="setup-screen" class="full-page hidden">
+  <div class="page-card">
+    <div class="page-logo">
+      <div style="font-size:48px;margin-bottom:10px">🎓</div>
+      <h2>First Time Setup<br>Class Tutor Registration</h2>
+      <p style="margin-top:6px">University College, Thiruvananthapuram</p>
+    </div>
+    <div class="field"><label>Your Name *</label><input id="s-name" placeholder="e.g. Dr. Rani J R"></div>
+    <div class="field"><label>Your Email *</label><input id="s-email" type="email" placeholder="yourname@gmail.com"></div>
+    <div class="field"><label>Password *</label><input id="s-pwd" type="password" placeholder="Create a password"></div>
+    <div class="field"><label>Your Phone</label><input id="s-phone" type="tel" placeholder="+91 98765 43210"></div>
+    <div class="field"><label>Batch / Class *</label><input id="s-batch" placeholder="e.g. M.Sc Physics 2024-26"></div>
+    <div id="setup-msg" style="margin-bottom:8px"></div>
+    <button class="btn btn-primary" onclick="doSetup()">✅ Complete Setup</button>
+  </div>
+</div>
+
+<!-- PARENT SCREEN -->
+<div id="parent-screen" class="full-page hidden">
+  <div class="page-card">
+    <div class="page-logo">
+      <div style="font-size:48px;margin-bottom:10px">👨‍👩‍👧</div>
+      <h2>Parent Portal</h2>
+      <p>University College Physics</p>
+    </div>
+    <div class="field">
+      <label>Your WhatsApp / Phone Number *</label>
+      <input id="parent-phone" type="tel" placeholder="e.g. 9876543210" style="font-size:16px;font-weight:600;text-align:center">
+      <div style="font-size:11px;color:var(--gray-mid);margin-top:4px;text-align:center">Must match number registered with college</div>
+    </div>
+    <div class="field">
+      <label>Your Child's Roll Number *</label>
+      <input id="parent-roll" placeholder="e.g. 23PH001" style="font-size:16px;font-weight:600;text-align:center">
+    </div>
+    <button class="btn btn-primary" onclick="fetchParentReport()">🔒 View My Child's Attendance</button>
+    <div id="parent-result" style="margin-top:16px"></div>
+    <div style="text-align:center;margin-top:12px">
+      <button class="btn btn-sm btn" onclick="hideParentView()" style="width:auto">← Back to Login</button>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app" class="hidden">
+  <div class="top-bar">
+    <span style="font-size:20px">🎓</span>
+    <h1>UC Physics<br><span style="font-size:11px;opacity:0.8;font-weight:400">Attendance Manager</span></h1>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+      <span class="role-badge" id="role-badge">Teacher</span>
+      <button onclick="doLogout()" style="font-size:10px;background:rgba(255,255,255,0.15);color:#fff;border:none;border-radius:10px;padding:2px 8px;cursor:pointer">Logout</button>
+    </div>
+  </div>
+  <div class="tab-bar" id="tab-bar"></div>
+
+  <!-- MARK -->
+  <div class="screen active" id="screen-mark">
+    <div class="day-nav">
+      <button class="nav-btn" onclick="changeDay(-1)">‹</button>
+      <div class="day-label">
+        <div class="day-title" id="day-title">—</div>
+        <div class="day-sub" id="day-sub"></div>
+      </div>
+      <button class="nav-btn" onclick="changeDay(1)">›</button>
+    </div>
+    <div style="text-align:center;margin-bottom:12px">
+      <button class="btn btn-sm btn" onclick="goToday()" style="width:auto">📅 Today</button>
+    </div>
+    <div id="holiday-banner"></div>
+    <div id="mark-list"></div>
+    <div id="mark-actions" class="hidden">
+      <div class="btn-row" style="margin-bottom:8px">
+        <button class="btn" onclick="markAll('P')">✅ All Present</button>
+        <button class="btn btn-danger" onclick="markAll('A')">❌ All Absent</button>
+      </div>
+      <button class="btn btn-primary" onclick="saveAttendance()">💾 Save Attendance</button>
+    </div>
+  </div>
+
+  <!-- STUDENTS -->
+  <div class="screen" id="screen-students">
+    <div class="card">
+      <div class="card-title">Import from CSV / Excel</div>
+      <div class="file-drop" onclick="document.getElementById('import-file').click()">
+        📂 Tap to upload CSV or Excel<br>
+        <span style="font-size:11px">Columns: Roll No, Name, Phone, Parent Name, Parent Phone, Parent Email, WhatsApp, Section</span>
+      </div>
+      <input type="file" id="import-file" accept=".csv,.xlsx,.xls" class="hidden" onchange="importStudents(event)">
+    </div>
+    <div class="card">
+      <div class="card-title">Add Student Manually</div>
+      <div class="field"><label>Roll Number *</label><input id="add-roll" placeholder="e.g. 24PH001"></div>
+      <div class="field"><label>Student Name *</label><input id="add-name" placeholder="Full name"></div>
+      <div class="field"><label>Student Phone</label><input id="add-phone" type="tel" placeholder="+91 98765 43210"></div>
+      <div class="field"><label>Parent / Guardian Name *</label><input id="add-pname" placeholder="Father / Mother name"></div>
+      <div class="field"><label>Parent Phone *</label><input id="add-pphone" type="tel" placeholder="+91 98765 43210"></div>
+      <div class="field"><label>Parent Email</label><input id="add-pemail" type="email" placeholder="parent@gmail.com"></div>
+      <div class="field"><label>Parent WhatsApp (if different)</label><input id="add-wa" type="tel" placeholder="+91 98765 43210"></div>
+      <div class="field"><label>Section / Division</label><input id="add-section" placeholder="e.g. A"></div>
+      <button class="btn btn-primary" onclick="addStudent()">➕ Add Student</button>
+    </div>
+    <div class="card">
+      <div class="card-title">Student List (<span id="student-count">0</span>)</div>
+      <div id="student-list-ui"></div>
+    </div>
+  </div>
+
+  <!-- SUMMARY -->
+  <div class="screen" id="screen-summary">
+    <div id="summary-subject-selector" class="card hidden">
+      <div class="card-title">Select Subject</div>
+      <select id="summary-subject" onchange="renderSummary()"></select>
+    </div>
+    <div class="stats-grid" id="stats-grid"></div>
+    <div class="card">
+      <div class="card-title">Student-wise Attendance</div>
+      <div id="summary-list"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Export</div>
+      <div class="btn-row">
+        <button class="btn" onclick="exportCSV()">📊 CSV</button>
+        <button class="btn" onclick="exportPDF()">📄 PDF</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- REPORT -->
+  <div class="screen" id="screen-report">
+    <div class="card">
+      <div class="card-title">Generate Daily Parent Report</div>
+      <div class="field"><label>Select Date</label><input type="date" id="report-date"></div>
+      <button class="btn btn-primary" onclick="generateParentReport()">📋 Generate Report</button>
+    </div>
+    <div id="report-output"></div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="screen" id="screen-settings">
+    <div id="teachers-section" class="hidden">
+      <div class="card">
+        <div class="card-title">Add Subject Teacher</div>
+        <div class="field"><label>Teacher Email *</label><input id="t-email" type="email" placeholder="teacher@gmail.com"></div>
+        <div class="field"><label>Teacher Name *</label><input id="t-name" placeholder="Full name"></div>
+        <div class="field"><label>Password for Teacher *</label><input id="t-pwd" type="text" placeholder="Set a password for this teacher"></div>
+        <div class="field"><label>Teacher Phone</label><input id="t-phone" type="tel" placeholder="+91 98765 43210"></div>
+        <div class="field"><label>Subject Code *</label><input id="t-code" placeholder="e.g. 24PHY601"></div>
+        <div class="field"><label>Subject Name *</label><input id="t-subj" placeholder="e.g. Condensed Matter Physics"></div>
+        <button class="btn btn-primary" onclick="addTeacher()">➕ Add Teacher</button>
+      </div>
+      <div class="card">
+        <div class="card-title">Registered Teachers</div>
+        <div id="teacher-list-ui"></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Add Custom Holiday</div>
+      <div class="field"><label>Date</label><input type="date" id="hol-date"></div>
+      <div class="field"><label>Holiday Name</label><input id="hol-name" placeholder="e.g. College Foundation Day"></div>
+      <button class="btn btn-primary" onclick="addHoliday()">➕ Add Holiday</button>
+      <div class="section-label">Custom Holidays</div>
+      <div id="hol-list"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Change My Password</div>
+      <div class="field"><label>New Password</label><input id="new-pwd" type="password" placeholder="Enter new password"></div>
+      <button class="btn btn-primary" onclick="changePassword()">🔐 Update Password</button>
+    </div>
+    <div class="card">
+      <div class="card-title">App Info</div>
+      <div style="font-size:13px;color:var(--gray-mid);line-height:2">
+        <div>Email: <strong id="info-email"></strong></div>
+        <div>Role: <strong id="info-role"></strong></div>
+        <div>Subject: <strong id="info-subject"></strong></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT MODAL -->
+<div class="modal-bg hidden" id="edit-modal">
+  <div class="modal">
+    <div class="modal-title">Edit Student</div>
+    <div class="field"><label>Roll Number</label><input id="e-roll" readonly style="background:#f5f5f5"></div>
+    <div class="field"><label>Name</label><input id="e-name"></div>
+    <div class="field"><label>Student Phone</label><input id="e-phone" type="tel"></div>
+    <div class="field"><label>Parent Name</label><input id="e-pname"></div>
+    <div class="field"><label>Parent Phone</label><input id="e-pphone" type="tel"></div>
+    <div class="field"><label>Parent Email</label><input id="e-pemail" type="email"></div>
+    <div class="field"><label>Parent WhatsApp</label><input id="e-wa" type="tel"></div>
+    <div class="field"><label>Section</label><input id="e-section"></div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="saveEditStudent()">Save</button>
+      <button class="btn" onclick="closeEditModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwWG1cMS9OGZKFetbg5ZFwvwdyQSECh6Pro3R75AtBMHa0FU9gtpzDSRQBCrkMRCG7FyQ/exec';
+
+let APP={user:null,students:[],holidays:{kerala:{},custom:{}},attendance:{},courses:[],teachers:[],currentDate:new Date()};
+let TUTOR_MODE=false;
+
+// ── API CALL ──────────────────────────────────────────────────
+function api(action, payload) {
+  return new Promise(function(resolve) {
+    const params = new URLSearchParams();
+    params.append('action', action);
+    if (payload) params.append('payload', JSON.stringify(payload));
+    fetch(SCRIPT_URL + '?' + params.toString())
+      .then(function(r) { return r.json(); })
+      .then(function(data) { resolve(data); })
+      .catch(function(e) { resolve({ok:false, error:e.message}); });
+  });
+}
+
+// ── INIT ─────────────────────────────────────────────────────
+window.onload = function() {
+  if (location.hash === '#parent') { showParentView(); hide('loading'); return; }
+  // Check if already logged in
+  const saved = localStorage.getItem('uc_user');
+  if (saved) {
+    try {
+      APP.user = JSON.parse(saved);
+      TUTOR_MODE = APP.user.role === 'tutor';
+      setMsg('Loading data…');
+      initApp();
+      return;
+    } catch(e) { localStorage.removeItem('uc_user'); }
+  }
+  // Check setup
+  setMsg('Checking setup…');
+  api('isSetupDone', null).then(function(r) {
+    if (!r.done) { show('setup-screen'); hide('loading'); return; }
+    show('login-screen'); hide('loading');
+  }).catch(function() {
+    show('login-screen'); hide('loading');
+  });
+};
+
+function setMsg(m) { document.getElementById('loading-msg').textContent = m; }
+
+// ── LOGIN ─────────────────────────────────────────────────────
+function doLogin() {
+  const email = val('login-email').toLowerCase().trim();
+  const pwd = val('login-password');
+  if (!email || !pwd) return showToast('Enter email and password');
+  document.getElementById('login-err').innerHTML = '<div class="alert alert-info">Logging in…</div>';
+  api('login', {email: email, password: pwd}).then(function(r) {
+    if (!r.ok) {
+      document.getElementById('login-err').innerHTML = '<div class="alert alert-err">❌ ' + r.error + '</div>';
+      return;
+    }
+    APP.user = r.user;
+    TUTOR_MODE = r.user.role === 'tutor';
+    localStorage.setItem('uc_user', JSON.stringify(r.user));
+    document.getElementById('login-err').innerHTML = '';
+    hide('login-screen');
+    show('loading');
+    setMsg('Loading data…');
+    initApp();
+  });
+}
+
+function doLogout() {
+  localStorage.removeItem('uc_user');
+  APP.user = null;
+  TUTOR_MODE = false;
+  hide('app');
+  document.getElementById('login-email').value = '';
+  document.getElementById('login-password').value = '';
+  show('login-screen');
+}
+
+// Allow Enter key to login
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && !document.getElementById('login-screen').classList.contains('hidden')) {
+    doLogin();
+  }
+});
+
+// ── SETUP ─────────────────────────────────────────────────────
+function doSetup() {
+  const data = {
+    tutorName: val('s-name'), tutorEmail: val('s-email').toLowerCase().trim(),
+    tutorPassword: val('s-pwd'), tutorPhone: val('s-phone'),
+    batch: val('s-batch'), institution: 'University College, Thiruvananthapuram'
+  };
+  if (!data.tutorName||!data.tutorEmail||!data.tutorPassword||!data.batch)
+    return document.getElementById('setup-msg').innerHTML = '<div class="alert alert-err">Name, Email, Password and Batch are required.</div>';
+  document.getElementById('setup-msg').innerHTML = '<div class="alert alert-info">Setting up…</div>';
+  api('setup', data).then(function(r) {
+    if (r.ok) {
+      document.getElementById('setup-msg').innerHTML = '<div class="alert alert-ok">✅ Done! Please login.</div>';
+      setTimeout(function() { hide('setup-screen'); show('login-screen'); }, 1500);
+    } else {
+      document.getElementById('setup-msg').innerHTML = '<div class="alert alert-err">Error: ' + r.error + '</div>';
+    }
+  });
+}
+
+// ── INIT APP ──────────────────────────────────────────────────
+function initApp() {
+  document.getElementById('role-badge').textContent = TUTOR_MODE ? 'Class Tutor' : 'Teacher';
+  document.getElementById('info-email').textContent = APP.user.email;
+  document.getElementById('info-role').textContent = TUTOR_MODE ? 'Class Tutor' : 'Subject Teacher';
+  document.getElementById('info-subject').textContent = TUTOR_MODE ? 'All Subjects' : (APP.user.subjectCode + ' – ' + APP.user.subjectName);
+  buildTabBar();
+  Promise.all([
+    api('getHolidays', null), api('getStudents', null), api('getCourses', null)
+  ]).then(function(results) {
+    if (results[0].ok) APP.holidays = results[0];
+    if (results[1].ok) APP.students = results[1].students;
+    if (results[2].ok) APP.courses = results[2].courses;
+    if (TUTOR_MODE) {
+      show('teachers-section');
+      api('getTeachers', null).then(function(r) { if(r.ok){APP.teachers=r.teachers;renderTeachers();} });
+      buildSummarySubjectSelector();
+    }
+    renderHolidays();
+    renderStudentList();
+    renderAttendanceDay();
+    document.getElementById('report-date').value = fmtDate(new Date());
+    hide('loading');
+    show('app');
+  });
+}
+
+function buildTabBar() {
+  const tabs = TUTOR_MODE ? [
+    {id:'mark',icon:'📋',label:'Mark'},
+    {id:'students',icon:'👥',label:'Students'},
+    {id:'summary',icon:'📊',label:'Summary'},
+    {id:'report',icon:'📨',label:'Report'},
+    {id:'settings',icon:'⚙️',label:'Settings'},
+  ] : [
+    {id:'mark',icon:'📋',label:'Mark'},
+    {id:'summary',icon:'📊',label:'Summary'},
+    {id:'settings',icon:'⚙️',label:'Settings'},
+  ];
+  document.getElementById('tab-bar').innerHTML = tabs.map(function(t) {
+    return '<div class="tab ' + (t.id==='mark'?'active':'') + '" id="tab-'+t.id+'" onclick="showScreen(\''+t.id+'\')">' + t.icon + '<br><span>' + t.label + '</span></div>';
+  }).join('');
+  if (!TUTOR_MODE) { hide('screen-students'); hide('screen-report'); }
+}
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(function(s){s.classList.remove('active');});
+  document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active');});
+  document.getElementById('screen-'+id).classList.add('active');
+  var tab = document.getElementById('tab-'+id);
+  if (tab) tab.classList.add('active');
+  if (id==='summary') renderSummary();
+  if (id==='students') renderStudentList();
+  if (id==='settings' && TUTOR_MODE) renderTeachers();
+}
+
+function fmtDate(d){return d.toLocaleDateString('en-CA');}
+function isWeekend(ds){var w=new Date(ds+'T00:00:00').getDay();return w===0||w===6;}
+function isHoliday(ds){return !!(APP.holidays.kerala[ds]||APP.holidays.custom[ds]);}
+function holidayName(ds){return APP.holidays.kerala[ds]||APP.holidays.custom[ds]||'';}
+function isSkip(ds){return isWeekend(ds)||isHoliday(ds);}
+function changeDay(n){APP.currentDate.setDate(APP.currentDate.getDate()+n);renderAttendanceDay();}
+function goToday(){APP.currentDate=new Date();renderAttendanceDay();}
+
+function renderAttendanceDay() {
+  var ds = fmtDate(APP.currentDate);
+  var opts = {weekday:'long',year:'numeric',month:'long',day:'numeric'};
+  document.getElementById('day-title').textContent = APP.currentDate.toLocaleDateString('en-IN',opts);
+  document.getElementById('day-sub').textContent = TUTOR_MODE ? 'Tutor View' : (APP.user.subjectCode+' – '+APP.user.subjectName);
+  var banner = document.getElementById('holiday-banner');
+  var list = document.getElementById('mark-list');
+  if (isWeekend(ds)){banner.innerHTML='<div class="alert alert-warn">🏖️ Weekend — no classes</div>';list.innerHTML='';hide('mark-actions');return;}
+  if (isHoliday(ds)){banner.innerHTML='<div class="alert alert-warn">🎉 Holiday: '+holidayName(ds)+'</div>';list.innerHTML='';hide('mark-actions');return;}
+  banner.innerHTML='';
+  if (!APP.students.length){list.innerHTML='<div class="alert alert-info">No students yet. '+(TUTOR_MODE?'Add in Students tab.':'Ask Class Tutor to add students.')+'</div>';hide('mark-actions');return;}
+  if (!TUTOR_MODE) {
+    api('getAttendance',{subjectCode:APP.user.subjectCode,dateFrom:ds,dateTo:ds}).then(function(r){
+      APP.attendance[ds]={};
+      if(r.ok) r.records.forEach(function(rec){APP.attendance[ds][rec.rollNo]=rec.status;});
+      buildAttList(ds);
+    });
+  } else { buildAttList(ds); }
+}
+
+function buildAttList(ds) {
+  var dayRec = APP.attendance[ds]||{};
+  var html = '';
+  APP.students.forEach(function(st) {
+    var s = dayRec[st.rollNo]||'';
+    html += '<div class="student-row"><span class="s-roll">'+st.rollNo+'</span><div style="flex:1"><div class="s-name">'+st.name+'</div><div class="s-meta">'+(st.parentName?'👨‍👩‍👧 '+st.parentName:'')+'</div></div><div class="att-toggle"><button id="btn-p-'+st.rollNo+'" class="'+(s==='P'?'active-p':'')+'" onclick="setAtt(\''+ds+'\',\''+st.rollNo+'\',\'P\')">P</button><button id="btn-a-'+st.rollNo+'" class="'+(s==='A'?'active-a':'')+'" onclick="setAtt(\''+ds+'\',\''+st.rollNo+'\',\'A\')">A</button></div></div>';
+  });
+  document.getElementById('mark-list').innerHTML = html;
+  show('mark-actions');
+}
+
+function setAtt(ds,roll,status){
+  if(!APP.attendance[ds])APP.attendance[ds]={};
+  APP.attendance[ds][roll]=status;
+  document.getElementById('btn-p-'+roll).className=status==='P'?'active-p':'';
+  document.getElementById('btn-a-'+roll).className=status==='A'?'active-a':'';
+}
+
+function markAll(s){
+  var ds=fmtDate(APP.currentDate);
+  if(!APP.attendance[ds])APP.attendance[ds]={};
+  APP.students.forEach(function(st){APP.attendance[ds][st.rollNo]=s;});
+  buildAttList(ds);
+}
+
+function saveAttendance(){
+  var ds=fmtDate(APP.currentDate);
+  var rec=APP.attendance[ds]||{};
+  var records=APP.students.map(function(st){return{rollNo:st.rollNo,name:st.name,status:rec[st.rollNo]||'A'};});
+  api('saveAttendance',{date:ds,subjectCode:TUTOR_MODE?'GENERAL':APP.user.subjectCode,subjectName:TUTOR_MODE?'General':APP.user.subjectName,teacherEmail:APP.user.email,records:records}).then(function(r){
+    if(r.ok)showToast('✅ Saved to Google Drive!');
+    else showToast('❌ '+r.error);
+  });
+}
+
+function renderStudentList(){
+  document.getElementById('student-count').textContent=APP.students.length;
+  if(!APP.students.length){document.getElementById('student-list-ui').innerHTML='<div style="text-align:center;color:var(--gray-mid);padding:16px;font-size:13px">No students added yet.</div>';return;}
+  var html='';
+  APP.students.forEach(function(st,i){
+    html+='<div class="student-row"><span class="s-roll">'+st.rollNo+'</span><div style="flex:1"><div class="s-name">'+st.name+'</div><div class="s-meta">'+(st.parentName?'👨‍👩‍👧 '+st.parentName:'')+(st.parentPhone?' · 📞 '+st.parentPhone:'')+(st.whatsapp&&st.whatsapp!==st.parentPhone?' · 💬 '+st.whatsapp:'')+'</div></div><div style="display:flex;gap:4px"><button class="btn btn-sm" onclick="openEditModal('+i+')">✏️</button><button class="btn btn-sm btn-danger" onclick="removeStudent(\''+st.rollNo+'\')">🗑️</button></div></div>';
+  });
+  document.getElementById('student-list-ui').innerHTML=html;
+}
+
+function addStudent(){
+  var data={rollNo:val('add-roll'),name:val('add-name'),phone:val('add-phone'),parentName:val('add-pname'),parentPhone:val('add-pphone'),parentEmail:val('add-pemail'),whatsapp:val('add-wa'),section:val('add-section')};
+  if(!data.rollNo||!data.name||!data.parentName||!data.parentPhone)return showToast('Roll No, Name, Parent Name & Phone required');
+  api('addStudent',data).then(function(r){
+    if(r.ok){showToast('✅ Student added');['add-roll','add-name','add-phone','add-pname','add-pphone','add-pemail','add-wa','add-section'].forEach(function(id){document.getElementById(id).value='';});api('getStudents',null).then(function(s){if(s.ok){APP.students=s.students;renderStudentList();}});}
+    else showToast('❌ '+r.error);
+  });
+}
+
+function removeStudent(rollNo){
+  if(!confirm('Remove '+rollNo+'?'))return;
+  api('removeStudent',rollNo).then(function(r){
+    if(r.ok){showToast('Removed');APP.students=APP.students.filter(function(s){return s.rollNo!==rollNo;});renderStudentList();}
+    else showToast('❌ '+r.error);
+  });
+}
+
+function openEditModal(i){
+  var st=APP.students[i];
+  ['roll','name','phone','pname','pphone','pemail','wa','section'].forEach(function(f,j){
+    document.getElementById('e-'+f).value=[st.rollNo,st.name,st.phone||'',st.parentName||'',st.parentPhone||'',st.parentEmail||'',st.whatsapp||'',st.section||''][j];
+  });
+  show('edit-modal');
+}
+function closeEditModal(){hide('edit-modal');}
+
+function saveEditStudent(){
+  var data={rollNo:val('e-roll'),name:val('e-name'),phone:val('e-phone'),parentName:val('e-pname'),parentPhone:val('e-pphone'),parentEmail:val('e-pemail'),whatsapp:val('e-wa'),section:val('e-section')};
+  api('updateStudent',data).then(function(r){
+    if(r.ok){showToast('✅ Updated');closeEditModal();api('getStudents',null).then(function(s){if(s.ok){APP.students=s.students;renderStudentList();}});}
+    else showToast('❌ '+r.error);
+  });
+}
+
+function importStudents(e){
+  var file=e.target.files[0];if(!file)return;
+  var ext=file.name.split('.').pop().toLowerCase();
+  var reader=new FileReader();
+  reader.onload=function(ev){
+    var rows=[];
+    if(ext==='csv'){
+      ev.target.result.split('\n').forEach(function(l){
+        var p=l.split(',').map(function(s){return s.trim().replace(/^"|"$/g,'');});
+        if(p[0]&&p[1])rows.push({rollNo:p[0],name:p[1],phone:p[2]||'',parentName:p[3]||'',parentPhone:p[4]||'',parentEmail:p[5]||'',whatsapp:p[6]||'',section:p[7]||''});
+      });
+    } else {
+      var wb=XLSX.read(ev.target.result,{type:'binary'});
+      XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1}).forEach(function(r){
+        if(r[0]&&r[1])rows.push({rollNo:String(r[0]).trim(),name:String(r[1]).trim(),phone:r[2]||'',parentName:r[3]||'',parentPhone:r[4]||'',parentEmail:r[5]||'',whatsapp:r[6]||'',section:r[7]||''});
+      });
+    }
+    if(!rows.length)return showToast('No valid rows found');
+    api('importStudents',rows).then(function(r){
+      if(r.ok){showToast('✅ Added '+r.added+' ('+r.skipped+' skipped)');api('getStudents',null).then(function(s){if(s.ok){APP.students=s.students;renderStudentList();}});}
+      else showToast('❌ '+r.error);
+    });
+  };
+  if(ext==='csv')reader.readAsText(file);else reader.readAsBinaryString(file);
+  e.target.value='';
+}
+
+function buildSummarySubjectSelector(){
+  if(!TUTOR_MODE)return;
+  var sel=document.getElementById('summary-subject');
+  sel.innerHTML=APP.courses.map(function(c){return'<option value="'+c.code+'">'+c.code+' – '+c.name+'</option>';}).join('');
+  if(APP.courses.length)show('summary-subject-selector');
+}
+
+function renderSummary(){
+  var subCode=TUTOR_MODE?(document.getElementById('summary-subject').value||(APP.courses[0]&&APP.courses[0].code)||'GENERAL'):APP.user.subjectCode;
+  api('getAttendance',{subjectCode:subCode,dateFrom:'',dateTo:''}).then(function(r){
+    if(!r.ok)return;
+    var allDays=[...new Set(r.records.map(function(rec){return rec.date;}))].filter(function(d){return!isSkip(d);}).sort();
+    var totalDays=allDays.length;
+    var perStudent={};
+    APP.students.forEach(function(st){perStudent[st.rollNo]={name:st.name,p:0,a:0};});
+    r.records.forEach(function(rec){if(!perStudent[rec.rollNo])return;if(rec.status==='P')perStudent[rec.rollNo].p++;else perStudent[rec.rollNo].a++;});
+    var statuses=Object.entries(perStudent).map(function([roll,v]){return{roll:roll,name:v.name,p:v.p,a:v.a,pct:totalDays>0?Math.round(v.p/totalDays*100):0};});
+    var avg=statuses.length?Math.round(statuses.reduce(function(s,x){return s+x.pct;},0)/statuses.length):0;
+    var below=statuses.filter(function(s){return s.pct<75&&totalDays>0;}).length;
+    document.getElementById('stats-grid').innerHTML='<div class="stat"><div class="stat-label">Classes Held</div><div class="stat-val">'+totalDays+'</div></div><div class="stat"><div class="stat-label">Avg Attendance</div><div class="stat-val">'+avg+'%</div></div><div class="stat"><div class="stat-label">Students</div><div class="stat-val">'+APP.students.length+'</div></div><div class="stat"><div class="stat-label" style="color:var(--red)">Below 75%</div><div class="stat-val" style="color:var(--red)">'+below+'</div></div>';
+    var html='';
+    statuses.sort(function(a,b){return a.roll.localeCompare(b.roll,undefined,{numeric:true});}).forEach(function(st){
+      var col=st.pct>=75?'#639922':st.pct>=60?'#BA7517':'#E24B4A';
+      var tcol=st.pct>=75?'#3B6D11':st.pct>=60?'var(--amber)':'var(--red)';
+      html+='<div class="student-row"><span class="s-roll">'+st.roll+'</span><div style="flex:1"><div class="s-name">'+st.name+'</div><div class="progress"><div class="progress-fill" style="width:'+st.pct+'%;background:'+col+'"></div></div><div class="s-meta">'+st.p+'P / '+st.a+'A of '+totalDays+' days</div></div><span style="font-weight:600;font-size:14px;color:'+tcol+';min-width:40px;text-align:right">'+st.pct+'%</span></div>';
+    });
+    document.getElementById('summary-list').innerHTML=html||'<div style="text-align:center;color:var(--gray-mid);padding:16px;font-size:13px">No data yet.</div>';
+  });
+}
+
+function exportCSV(){
+  var subCode=TUTOR_MODE?(document.getElementById('summary-subject').value||(APP.courses[0]&&APP.courses[0].code)||'GENERAL'):APP.user.subjectCode;
+  api('getAttendance',{subjectCode:subCode,dateFrom:'',dateTo:''}).then(function(r){
+    if(!r.ok)return;
+    var allDays=[...new Set(r.records.map(function(rec){return rec.date;}))].filter(function(d){return!isSkip(d);}).sort();
+    var dayMap={};
+    r.records.forEach(function(rec){if(!dayMap[rec.rollNo])dayMap[rec.rollNo]={};dayMap[rec.rollNo][rec.date]=rec.status;});
+    var lines=[['Roll No','Name','Parent Name','Parent Phone'].concat(allDays).concat(['Present','Absent','%'])];
+    APP.students.forEach(function(st){
+      var row=[st.rollNo,st.name,st.parentName||'',st.parentPhone||''];
+      var p=0,a=0;
+      allDays.forEach(function(d){var v=(dayMap[st.rollNo]||{})[d]||'';row.push(v);if(v==='P')p++;if(v==='A')a++;});
+      row.push(p,a,allDays.length?Math.round(p/allDays.length*100)+'%':'0%');
+      lines.push(row);
+    });
+    var csv=lines.map(function(row){return row.map(function(c){return'"'+c+'"';}).join(',');}).join('\n');
+    var blob=new Blob([csv],{type:'text/csv'});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement('a');a.href=url;a.download='attendance_'+subCode+'.csv';a.click();URL.revokeObjectURL(url);
+  });
+}
+
+function exportPDF(){
+  var list=document.getElementById('summary-list').innerHTML;
+  var w=window.open('','_blank');
+  w.document.write('<html><head><style>body{font-family:Arial,sans-serif;font-size:13px;margin:20px}.student-row{display:flex;padding:6px 0;border-bottom:1px solid #eee}.s-roll{min-width:70px;color:#888;font-weight:600}.s-name{flex:1}.progress{display:none}@media print{button{display:none}}</style></head><body><h2 style="color:#1a6b3c">University College Physics — Attendance</h2><p style="color:#888;margin-bottom:12px">Generated: '+new Date().toLocaleDateString('en-IN')+'</p><button onclick="window.print()" style="padding:6px 16px;background:#1a6b3c;color:#fff;border:none;border-radius:4px;cursor:pointer;margin-bottom:12px">🖨️ Print</button>'+list+'</body></html>');
+  w.document.close();
+}
+
+function addTeacher(){
+  var data={email:val('t-email').toLowerCase().trim(),name:val('t-name'),password:val('t-pwd'),phone:val('t-phone'),subjectCode:val('t-code'),subjectName:val('t-subj')};
+  if(!data.email||!data.name||!data.password||!data.subjectCode||!data.subjectName)return showToast('All fields except phone are required');
+  api('addTeacher',data).then(function(r){
+    if(r.ok){
+      showToast('✅ Teacher added');
+      ['t-email','t-name','t-pwd','t-phone','t-code','t-subj'].forEach(function(id){document.getElementById(id).value='';});
+      api('getTeachers',null).then(function(t){if(t.ok){APP.teachers=t.teachers;renderTeachers();}});
+      api('getCourses',null).then(function(c){if(c.ok){APP.courses=c.courses;buildSummarySubjectSelector();}});
+    } else showToast('❌ '+r.error);
+  });
+}
+
+function renderTeachers(){
+  if(!TUTOR_MODE)return;
+  var el=document.getElementById('teacher-list-ui');if(!el)return;
+  var html='';
+  APP.teachers.forEach(function(t){
+    html+='<div class="student-row"><div style="flex:1"><div class="s-name">'+t.name+'</div><div class="s-meta">'+t.email+' · '+t.subjectCode+' – '+t.subjectName+(t.phone?' · 📞 '+t.phone:'')+'</div></div><button class="btn btn-sm btn-danger" onclick="removeTeacher(\''+t.email+'\')">🗑️</button></div>';
+  });
+  el.innerHTML=html||'<div style="text-align:center;color:var(--gray-mid);padding:12px;font-size:13px">No teachers yet.</div>';
+}
+
+function removeTeacher(email){
+  if(!confirm('Remove '+email+'?'))return;
+  api('removeTeacher',email).then(function(r){
+    if(r.ok){showToast('Removed');APP.teachers=APP.teachers.filter(function(t){return t.email!==email;});renderTeachers();}
+    else showToast('❌ '+r.error);
+  });
+}
+
+function addHoliday(){
+  var d=val('hol-date'),n=val('hol-name');
+  if(!d||!n)return showToast('Enter date and name');
+  api('addHoliday',{date:d,name:n}).then(function(r){
+    if(r.ok){showToast('✅ Holiday added');document.getElementById('hol-date').value='';document.getElementById('hol-name').value='';APP.holidays.custom[d]=n;renderHolidays();}
+    else showToast('❌ '+r.error);
+  });
+}
+
+function renderHolidays(){
+  var el=document.getElementById('hol-list');if(!el)return;
+  var entries=Object.entries(APP.holidays.custom||{});
+  el.innerHTML=entries.length?entries.map(function(e){return'<div class="student-row" style="padding:6px 0"><span class="badge badge-h">'+e[0]+'</span><span style="flex:1;margin-left:8px;font-size:13px">'+e[1]+'</span></div>';}).join(''):'<div style="font-size:12px;color:var(--gray-mid)">No custom holidays added.</div>';
+}
+
+function changePassword(){
+  var pwd=val('new-pwd');
+  if(!pwd)return showToast('Enter new password');
+  api('changePassword',{email:APP.user.email,newPassword:pwd}).then(function(r){
+    if(r.ok){showToast('✅ Password updated');document.getElementById('new-pwd').value='';}
+    else showToast('❌ '+r.error);
+  });
+}
+
+function generateParentReport(){
+  var date=document.getElementById('report-date').value;
+  if(!date)return showToast('Select a date');
+  document.getElementById('report-output').innerHTML='<div class="alert alert-info">Generating…</div>';
+  api('generateParentReport',date).then(function(r){
+    if(!r.ok){document.getElementById('report-output').innerHTML='<div class="alert alert-err">Error: '+r.error+'</div>';return;}
+    var html='<div class="card"><div class="card-title">Report — '+date+' — '+r.totalStudents+' students</div><div class="alert alert-info" style="margin-bottom:10px">Tap WhatsApp to send directly.</div>';
+    r.messages.forEach(function(m){
+      html+='<div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid #f0f0f0"><div style="font-size:12px;font-weight:600;margin-bottom:4px">'+m.rollNo+' · '+(m.parentName||'—')+' · 📞 '+(m.parentPhone||'—')+(m.whatsapp&&m.whatsapp!==m.parentPhone?' · 💬 '+m.whatsapp:'')+'</div><div class="wa-msg">'+m.message+'</div><div class="btn-row"><button class="btn btn-sm" onclick="copyMsg(\''+encodeURIComponent(m.message)+'\')">📋 Copy</button><button class="btn btn-sm" style="background:#25d366;color:#fff;border-color:#25d366" onclick="openWA(\''+(m.whatsapp||m.parentPhone||'')+'\',\''+encodeURIComponent(m.message)+'\')">💬 WhatsApp</button></div></div>';
+    });
+    html+='<button class="btn btn-primary" onclick="copyAllMsgs()">📋 Copy All</button></div>';
+    document.getElementById('report-output').innerHTML=html;
+    window._allMsgs=r.messages.map(function(m){return m.message;}).join('\n\n---\n\n');
+  });
+}
+
+function copyMsg(encoded){navigator.clipboard.writeText(decodeURIComponent(encoded)).then(function(){showToast('Copied!');});}
+function openWA(phone,encoded){window.open('https://wa.me/'+phone.replace(/\D/g,'')+'?text='+encoded,'_blank');}
+function copyAllMsgs(){if(window._allMsgs)navigator.clipboard.writeText(window._allMsgs).then(function(){showToast('All copied!');});}
+
+function showParentView(){['app','login-screen','setup-screen','loading'].forEach(hide);show('parent-screen');}
+function hideParentView(){hide('parent-screen');show('login-screen');}
+
+function fetchParentReport(){
+  var roll=document.getElementById('parent-roll').value.trim();
+  var phone=document.getElementById('parent-phone').value.trim();
+  if(!roll||!phone)return showToast('Enter both phone number and roll number');
+  document.getElementById('parent-result').innerHTML='<div class="alert alert-info">Verifying…</div>';
+  api('getStudentReport',{rollNo:roll,phone:phone}).then(function(r){
+    if(!r.ok){document.getElementById('parent-result').innerHTML='<div class="alert alert-err">❌ '+r.error+'</div>';return;}
+    var st=r.student;
+    var html='<div style="background:var(--green);color:#fff;border-radius:var(--radius);padding:14px;margin-bottom:12px"><div style="font-size:18px;font-weight:700">'+st.name+'</div><div style="font-size:13px;opacity:0.85">'+st.rollNo+(st.section?' · Section '+st.section:'')+'</div><div style="font-size:12px;opacity:0.7;margin-top:4px">👨‍👩‍👧 '+(st.parentName||'—')+' · 📞 '+(st.parentPhone||'—')+'</div></div>';
+    if(!r.subjects.length)html+='<div class="alert alert-warn">No attendance data yet.</div>';
+    r.subjects.forEach(function(subj){
+      var col=subj.pct>=75?'#639922':subj.pct>=60?'#BA7517':'#E24B4A';
+      var tcol=subj.pct>=75?'#3B6D11':subj.pct>=60?'var(--amber)':'var(--red)';
+      var warn=subj.pct<75?'<div style="font-size:11px;color:var(--red);margin-top:4px;font-weight:600">⚠️ Below 75% — attendance shortage</div>':'';
+      html+='<div class="card"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><div style="flex:1"><div style="font-weight:600;font-size:14px">'+subj.code+'</div><div style="font-size:12px;color:var(--gray-mid)">'+subj.name+(subj.teacherName?' · '+subj.teacherName:'')+'</div></div><span style="font-size:22px;font-weight:700;color:'+tcol+'">'+subj.pct+'%</span></div><div class="progress"><div class="progress-fill" style="width:'+subj.pct+'%;background:'+col+'"></div></div><div style="font-size:12px;color:var(--gray-mid);margin-top:4px">'+subj.present+' present / '+(subj.total-subj.present)+' absent of '+subj.total+' classes</div>'+warn+'<div style="margin-top:8px;max-height:120px;overflow-y:auto">'+subj.records.sort(function(a,b){return b.date.localeCompare(a.date);}).slice(0,20).map(function(rec){return'<span class="badge '+(rec.status==='P'?'badge-p':'badge-a')+'" style="margin:2px">'+rec.date+' '+(rec.status==='P'?'✅':'❌')+'</span>';}).join('')+'</div></div>';
+    });
+    document.getElementById('parent-result').innerHTML=html;
+  });
+}
+
+function val(id){return(document.getElementById(id)||{}).value||'';}
+function show(id){var el=document.getElementById(id);if(el)el.classList.remove('hidden');}
+function hide(id){var el=document.getElementById(id);if(el)el.classList.add('hidden');}
+function showToast(msg){
+  var t=document.getElementById('toast');
+  t.textContent=msg;t.style.opacity='1';
+  clearTimeout(window._tt);
+  window._tt=setTimeout(function(){t.style.opacity='0';},3000);
+}
+</script>
+</body>
+</html>
