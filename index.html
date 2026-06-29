@@ -330,17 +330,37 @@ function api(action, payload) {
     var callbackName = 'cb_' + Date.now() + '_' + Math.random().toString(36).slice(2);
     var params = 'action=' + encodeURIComponent(action) + '&callback=' + callbackName;
     if (payload) params += '&payload=' + encodeURIComponent(JSON.stringify(payload));
+    
+    var done = false;
+    var timer = setTimeout(function() {
+      if (!done) {
+        done = true;
+        delete window[callbackName];
+        if (document.body.contains(script)) document.body.removeChild(script);
+        resolve({ok:false, error:'Timeout — check internet connection'});
+      }
+    }, 10000);
+    
     window[callbackName] = function(data) {
-      delete window[callbackName];
-      document.body.removeChild(script);
-      resolve(data);
+      if (!done) {
+        done = true;
+        clearTimeout(timer);
+        delete window[callbackName];
+        if (document.body.contains(script)) document.body.removeChild(script);
+        resolve(data);
+      }
     };
+    
     var script = document.createElement('script');
     script.src = SCRIPT_URL + '?' + params;
     script.onerror = function() {
-      delete window[callbackName];
-      document.body.removeChild(script);
-      resolve({ok:false, error:'Connection failed'});
+      if (!done) {
+        done = true;
+        clearTimeout(timer);
+        delete window[callbackName];
+        if (document.body.contains(script)) document.body.removeChild(script);
+        resolve({ok:false, error:'Script load failed — Apps Script may need redeployment'});
+      }
     };
     document.body.appendChild(script);
   });
